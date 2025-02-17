@@ -1,1 +1,232 @@
-<!DOCTYPE html> <html lang="it"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>ContaDaimoku Settore Torraccia</title> <style> body { font-family: Arial, sans-serif; text-align: center; } h2 { margin-bottom: 10px; } table { border-collapse: collapse; margin: 20px auto; width: 90%; } td, th { border: 1px solid black; padding: 10px; text-align: center; } .squares-container { display: inline-block; } .square-row { margin: 5px 0; } .square { width: 20px; height: 20px; display: inline-block; background-color: white; border: 1px solid black; margin: 1px; cursor: pointer; } .occupied { background-color: black; } .edit-name { border: none; font-size: 16px; text-align: center; width: 120px; } #counter { font-size: 20px; margin-top: 20px; } #newUserForm { margin-bottom: 20px; } </style> </head> <body> <h2>ContaDaimoku Settore Torraccia</h2> <!-- Form per aggiungere un nuovo utente --> <form id="newUserForm"> <input type="text" id="newUserName" placeholder="Inserisci il tuo nome" required> <button type="submit">Aggiungi utente</button> </form> <div id="counter">Ore totali: 0 | Daimoku totali: 0</div> <table id="schedule"> <thead> <tr> <th>Nome</th> <th>Ore</th> </tr> </thead> <tbody></tbody> </table> <!-- Includiamo Firebase (assicurati di usare la versione corretta e sostituisci la configurazione) --> <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script> <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script> <script> // CONFIGURAZIONE FIREBASE – sostituisci con i tuoi parametri const firebaseConfig = { apiKey: "YOUR_API_KEY", authDomain: "YOUR_AUTH_DOMAIN", databaseURL: "YOUR_DATABASE_URL", projectId: "YOUR_PROJECT_ID", storageBucket: "YOUR_STORAGE_BUCKET", messagingSenderId: "YOUR_MESSAGING_SENDER_ID", appId: "YOUR_APP_ID" }; const app = firebase.initializeApp(firebaseConfig); const db = firebase.database(); const squaresPerRow = 3; const tableBody = document.querySelector("tbody"); const counter = document.getElementById("counter"); // Funzione per aggiornare il contatore globale (calcolando le celle "occupied" di tutti gli utenti) function updateGlobalCounter(users) { let totalOccupied = 0; for (let id in users) { let squares = users[id].squares; squares.forEach(row => { row.forEach(val => { if(val === 1) totalOccupied++; }); }); } let totalDaimoku = totalOccupied * 3000; counter.innerHTML = `Ore totali: ${totalOccupied} | Daimoku totali: ${totalDaimoku}`; } // Funzione per creare la riga di un utente function createUserRow(id, userData) { const row = document.createElement("tr"); row.setAttribute("data-id", id); // Cella del nome editabile const nameCell = document.createElement("td"); const nameInput = document.createElement("input"); nameInput.type = "text"; nameInput.value = userData.name || ""; nameInput.className = "edit-name"; nameInput.addEventListener("change", () => { db.ref("users/" + id).update({ name: nameInput.value }); }); nameCell.appendChild(nameInput); row.appendChild(nameCell); // Cella per i quadratini const squaresCell = document.createElement("td"); const squaresContainer = document.createElement("div"); squaresContainer.className = "squares-container"; // Se non esistono dati o non sono validi, inizializza con una riga di 3 quadratini let squaresData = userData.squares; if (!Array.isArray(squaresData) || squaresData.length === 0) { squaresData = [[0,0,0]]; } squaresData.forEach((rowData, rowIndex) => { const rowDiv = document.createElement("div"); rowDiv.className = "square-row"; rowData.forEach((val, colIndex) => { const square = document.createElement("div"); square.className = "square"; if(val === 1) square.classList.add("occupied"); square.addEventListener("click", () => { // Alterna lo stato const newState = square.classList.contains("occupied") ? 0 : 1; square.classList.toggle("occupied"); squaresData[rowIndex][colIndex] = newState; // Se siamo nell'ultima riga e TUTTI i quadratini sono occupati, aggiungi una nuova riga if (rowIndex === squaresData.length - 1 && squaresData[rowIndex].every(v => v === 1)) { let newRow = new Array(squaresPerRow).fill(0); squaresData.push(newRow); const newRowDiv = document.createElement("div"); newRowDiv.className = "square-row"; newRow.forEach((v, newColIndex) => { const newSquare = document.createElement("div"); newSquare.className = "square"; newSquare.addEventListener("click", () => { const newState2 = newSquare.classList.contains("occupied") ? 0 : 1; newSquare.classList.toggle("occupied"); squaresData[squaresData.length - 1][newColIndex] = newState2; db.ref("users/" + id).update({ squares: squaresData }); fetchUsersAndUpdateUI(); }); newRowDiv.appendChild(newSquare); }); squaresContainer.appendChild(newRowDiv); } // Salva lo stato aggiornato su Firebase db.ref("users/" + id).update({ squares: squaresData }); fetchUsersAndUpdateUI(); }); rowDiv.appendChild(square); }); squaresContainer.appendChild(rowDiv); }); squaresCell.appendChild(squaresContainer); row.appendChild(squaresCell); return row; } // Funzione per caricare tutti gli utenti e aggiornare l'interfaccia function fetchUsersAndUpdateUI() { db.ref("users").once("value").then(snapshot => { const users = snapshot.val() || {}; tableBody.innerHTML = ""; for (let id in users) { const userRow = createUserRow(id, users[id]); tableBody.appendChild(userRow); } updateGlobalCounter(users); }); } // Imposta il listener in tempo reale: ogni volta che cambiano i dati, aggiorna l'interfaccia db.ref("users").on("value", snapshot => { const users = snapshot.val() || {}; tableBody.innerHTML = ""; for (let id in users) { const userRow = createUserRow(id, users[id]); tableBody.appendChild(userRow); } updateGlobalCounter(users); }); // Gestione del form per l'aggiunta di un nuovo utente document.getElementById("newUserForm").addEventListener("submit", function(e) { e.preventDefault(); const newUserName = document.getElementById("newUserName").value.trim(); if (newUserName) { // Inizializza l'utente con una sola riga di 3 quadratini non attivati db.ref("users").push({ name: newUserName, squares: [[0,0,0]] }); document.getElementById("newUserName").value = ""; } }); </script> </body> </html>
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ContaDaimoku Settore Torraccia</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+      }
+      h2 {
+        margin-bottom: 10px;
+      }
+      table {
+        border-collapse: collapse;
+        margin: 20px auto;
+        width: 90%;
+      }
+      td, th {
+        border: 1px solid black;
+        padding: 10px;
+        text-align: center;
+      }
+      .squares-container {
+        display: inline-block;
+      }
+      .square-row {
+        margin: 5px 0;
+      }
+      .square {
+        width: 20px;
+        height: 20px;
+        display: inline-block;
+        background-color: white;
+        border: 1px solid black;
+        margin: 1px;
+        cursor: pointer;
+      }
+      .occupied {
+        background-color: black;
+      }
+      .edit-name {
+        border: none;
+        font-size: 16px;
+        text-align: center;
+        width: 120px;
+      }
+      #counter {
+        font-size: 20px;
+        margin-top: 20px;
+      }
+      #newUserForm {
+        margin-bottom: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>ContaDaimoku Settore Torraccia</h2>
+    
+    <!-- Form per aggiungere un nuovo utente -->
+    <form id="newUserForm">
+      <input type="text" id="newUserName" placeholder="Inserisci il tuo nome" required>
+      <button type="submit">Aggiungi utente</button>
+    </form>
+    
+    <div id="counter">Ore totali: 0 | Daimoku totali: 0</div>
+    
+    <table id="schedule">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>Ore</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    
+    <!-- Includiamo Firebase (assicurati di usare la versione corretta e sostituisci la configurazione) -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
+    <script>
+      // CONFIGURAZIONE FIREBASE – sostituisci con i tuoi parametri
+      const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_AUTH_DOMAIN",
+        databaseURL: "YOUR_DATABASE_URL",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_STORAGE_BUCKET",
+        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+        appId: "YOUR_APP_ID"
+      };
+      
+      const app = firebase.initializeApp(firebaseConfig);
+      const db = firebase.database();
+      
+      const squaresPerRow = 3;
+      const tableBody = document.querySelector("tbody");
+      const counter = document.getElementById("counter");
+      
+      // Funzione per aggiornare il contatore globale (calcolando le celle "occupied" di tutti gli utenti)
+      function updateGlobalCounter(users) {
+        let totalOccupied = 0;
+        for (let id in users) {
+          let squares = users[id].squares;
+          squares.forEach(row => {
+            row.forEach(val => {
+              if (val === 1) totalOccupied++;
+            });
+          });
+        }
+        let totalDaimoku = totalOccupied * 3000;
+        counter.innerHTML = `Ore totali: ${totalOccupied} | Daimoku totali: ${totalDaimoku}`;
+      }
+      
+      // Funzione per creare la riga di un utente
+      function createUserRow(id, userData) {
+        const row = document.createElement("tr");
+        row.setAttribute("data-id", id);
+        
+        // Cella del nome editabile
+        const nameCell = document.createElement("td");
+        const nameInput = document.createElement("input");
+        nameInput.type = "text";
+        nameInput.value = userData.name || "";
+        nameInput.className = "edit-name";
+        nameInput.addEventListener("change", () => {
+          db.ref("users/" + id).update({ name: nameInput.value });
+        });
+        nameCell.appendChild(nameInput);
+        row.appendChild(nameCell);
+        
+        // Cella per i quadratini
+        const squaresCell = document.createElement("td");
+        const squaresContainer = document.createElement("div");
+        squaresContainer.className = "squares-container";
+        
+        // Se non esistono dati o non sono validi, inizializza con una riga di 3 quadratini
+        let squaresData = userData.squares;
+        if (!Array.isArray(squaresData) || squaresData.length === 0) {
+          squaresData = [[0, 0, 0]];
+        }
+        
+        squaresData.forEach((rowData, rowIndex) => {
+          const rowDiv = document.createElement("div");
+          rowDiv.className = "square-row";
+          rowData.forEach((val, colIndex) => {
+            const square = document.createElement("div");
+            square.className = "square";
+            if (val === 1) square.classList.add("occupied");
+            square.addEventListener("click", () => {
+              // Alterna lo stato
+              const newState = square.classList.contains("occupied") ? 0 : 1;
+              square.classList.toggle("occupied");
+              squaresData[rowIndex][colIndex] = newState;
+              
+              // Se siamo nell'ultima riga e TUTTI i quadratini sono occupati, aggiungi una nuova riga
+              if (
+                rowIndex === squaresData.length - 1 &&
+                squaresData[rowIndex].every(v => v === 1)
+              ) {
+                let newRow = new Array(squaresPerRow).fill(0);
+                squaresData.push(newRow);
+                const newRowDiv = document.createElement("div");
+                newRowDiv.className = "square-row";
+                newRow.forEach((v, newColIndex) => {
+                  const newSquare = document.createElement("div");
+                  newSquare.className = "square";
+                  newSquare.addEventListener("click", () => {
+                    const newState2 = newSquare.classList.contains("occupied") ? 0 : 1;
+                    newSquare.classList.toggle("occupied");
+                    squaresData[squaresData.length - 1][newColIndex] = newState2;
+                    db.ref("users/" + id).update({ squares: squaresData });
+                    fetchUsersAndUpdateUI();
+                  });
+                  newRowDiv.appendChild(newSquare);
+                });
+                squaresContainer.appendChild(newRowDiv);
+              }
+              // Salva lo stato aggiornato su Firebase
+              db.ref("users/" + id).update({ squares: squaresData });
+              fetchUsersAndUpdateUI();
+            });
+            rowDiv.appendChild(square);
+          });
+          squaresContainer.appendChild(rowDiv);
+        });
+        squaresCell.appendChild(squaresContainer);
+        row.appendChild(squaresCell);
+        
+        return row;
+      }
+      
+      // Funzione per caricare tutti gli utenti e aggiornare l'interfaccia
+      function fetchUsersAndUpdateUI() {
+        db.ref("users")
+          .once("value")
+          .then(snapshot => {
+            const users = snapshot.val() || {};
+            tableBody.innerHTML = "";
+            for (let id in users) {
+              const userRow = createUserRow(id, users[id]);
+              tableBody.appendChild(userRow);
+            }
+            updateGlobalCounter(users);
+          });
+      }
+      
+      // Imposta il listener in tempo reale: ogni volta che cambiano i dati, aggiorna l'interfaccia
+      db.ref("users").on("value", snapshot => {
+        const users = snapshot.val() || {};
+        tableBody.innerHTML = "";
+        for (let id in users) {
+          const userRow = createUserRow(id, users[id]);
+          tableBody.appendChild(userRow);
+        }
+        updateGlobalCounter(users);
+      });
+      
+      // Gestione del form per l'aggiunta di un nuovo utente
+      document.getElementById("newUserForm").addEventListener("submit", function(e) {
+        e.preventDefault();
+        const newUserName = document.getElementById("newUserName").value.trim();
+        if (newUserName) {
+          // Inizializza l'utente con una sola riga di 3 quadratini non attivati
+          db.ref("users").push({ name: newUserName, squares: [[0, 0, 0]] });
+          document.getElementById("newUserName").value = "";
+        }
+      });
+    </script>
+  </body>
+</html>
